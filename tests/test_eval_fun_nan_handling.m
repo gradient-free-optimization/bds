@@ -39,7 +39,11 @@ fprintf('>>> Running bds (with eval_fun)...\n');
 try
     % Use default options
     options = struct(); 
-    options.iprint = 0; % Suppress internal printing for cleaner output
+    % When output_xhist is true, bds will also return the points where function evaluations 
+    % failed. This can be useful for debugging and analysis. In this test case, we may 
+    % encounter function evaluation failures, which provides an opportunity to validate 
+    % this feature.
+    options.output_xhist = true; 
     [xopt_bds, fopt_bds, ~, output_bds] = bds(fun_trap, x0, options);
     
     fprintf('   Result: xopt = [%f, %f]\n', xopt_bds(1), xopt_bds(2));

@@ -366,6 +366,12 @@ grad_info.step_size_per_block = alpha_all;
 grad_info.fbase_per_batch = nan(batch_size, 1);
 grad_info.complete_direction_set = D;
 
+% invalid_points will store the points where the function evaluation fails.
+% Specifically, it records points that result in NaN values or trigger an error
+% during the function evaluation. This information can be useful for debugging
+% or analyzing problematic regions in the search space.
+invalid_points = [];
+
 % Initialize exitflag.
 % If exitflag is not set elsewhere, then the maximum number of iterations
 % is reached, and hence we initialize exitflag to the corresponding value.
@@ -374,12 +380,15 @@ exitflag = get_exitflag("MAXIT_REACHED");
 % Evaluate the function at the starting point x0.
 % f0_real is the real function value at x0, while f0 might be different from f0_real.
 % The detail is explained in eval_fun.m.
-[f0, f0_real] = eval_fun(fun, x0);
+[f0, f0_real, is_valid] = eval_fun(fun, x0);
 % Initialize nf (the number of function evaluations), xhist (history of points visited), and
 % fhist (history of function values).
 nf = 1;
 if output_xhist
     xhist(:, nf) = x0;
+end
+if ~is_valid
+    invalid_points = [invalid_points, x0];
 end
 % When we record fhist, we should use the real function value at x0, which is f0_real.
 fhist(nf) = f0_real;
@@ -525,6 +534,7 @@ for iter = 1:maxit
         if output_xhist
             xhist(:, (nf+1):(nf+sub_output.nf)) = sub_output.xhist;
         end
+        invalid_points = [invalid_points, sub_output.invalid_points];
 
         % Record the function values calculated by inner_direct_search,
         fhist((nf+1):(nf+sub_output.nf)) = sub_output.fhist;
@@ -766,6 +776,7 @@ if output_alpha_hist
 end
 if output_xhist
     output.xhist = xhist(:, 1:nf);
+    output.invalid_points = invalid_points;
 end
 if output_grad_hist
     output.grad_hist = grad_hist;
