@@ -8,9 +8,6 @@ on:
   #  - cron: '0 22 */7 * *'
   workflow_dispatch:
 
-env:
-    GFORTRAN_VERSION: 12
-
 jobs:
   test:
     name: Verify BDS.
@@ -18,8 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        matlab: [latest]
+        os: [ubuntu-latest, macos-latest]
+        matlab: [R2024b]
         with_optim_toolbox: [yes]
         Algorithm: [cbds, ds, rbds, pads]
         parallel: [true, false]
@@ -42,22 +39,7 @@ jobs:
         with:
           repository: optiprofiler/optiprofiler
           path: optiprofiler
-          submodules: recursive
-          ref: 8a617f4e52cb95988fe9f29949856dc2874b81e7
-
-      - name: Link gfortran for MATLAB on Linux
-        if: startsWith(matrix.os, 'ubuntu')
-        run: bash .github/scripts/link_gfortran ${{ env.GFORTRAN_VERSION }}
-
-      - name: Install epstopdf and ghostscript
-        if: startsWith(matrix.os, 'ubuntu')
-        run: bash .github/scripts/install_epstopdf && bash .github/scripts/install_ghostscript
-
-      - name: Install Texlive
-        run: sudo apt-get update && sudo apt-get install texlive
-
-      - name: Check whether LaTeX is installed
-        run: pdflatex --version
+          ref: 675a7cd5d52f1dbb7f5fdd486406b285dc6a8bc6
 
       - name: Cache MATLAB
         id: cache-matlab
@@ -82,7 +64,7 @@ jobs:
 
             % Setup optiprofiler
             cd(fullfile(root_dir, 'optiprofiler'));
-            setup
+            setup(struct('install_matcutest', true));
             cd(root_dir);
 
             % Setup bds_development
