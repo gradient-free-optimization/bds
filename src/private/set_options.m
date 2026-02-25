@@ -203,16 +203,26 @@ if isfield(options, "alpha_init")
     elseif isnumvec(options.alpha_init) && (length(options.alpha_init) == options.num_blocks)
         options.alpha_init = options.alpha_init(:);
     elseif strcmpi(options.alpha_init, "auto")
-            % Calculate Smart Alpha
-            alpha_vec = zeros(n, 1);
-            for i = 1:n
-                if x0(i) ~= 0
-                    alpha_vec(i) = max(abs(x0(i)), options.StepTolerance(i));
-                else
-                    alpha_vec(i) = 1;
-                end
+        % Calculate Smart Alpha
+        alpha_vec = zeros(n, 1);
+        % for i = 1:n
+        %     if x0(i) ~= 0
+        %         alpha_vec(i) = max(abs(x0(i)), options.StepTolerance(i));
+        %     else
+        %         alpha_vec(i) = 1;
+        %     end
+        % end
+        for i=1:n
+            val=abs(x0(i));
+            if val > 1
+            alpha_vec(i) = val^0.5;
+            elseif val ~= 0
+            alpha_vec(i) = max(val, options.StepTolerance(i));
+            else
+            alpha_vec(i) = 1;
             end
-            options.alpha_init = alpha_vec;
+        end
+        options.alpha_init = alpha_vec;
     else
         error('BDS:set_options:InvalidAlphaInit', ...
             'options.alpha_init must be a positive scalar, a vector of length options.num_blocks, or "auto".');
