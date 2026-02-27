@@ -39,7 +39,7 @@ field_list = {
     'use_estimated_gradient_stop'
     'grad_window_size'
     'grad_tol'
-    'estimated_lipschitz_constant'
+    'lipschitz_constant'
     'Algorithm'
     'direction_set'
     'num_blocks'
@@ -203,16 +203,65 @@ if isfield(options, "alpha_init")
     elseif isnumvec(options.alpha_init) && (length(options.alpha_init) == options.num_blocks)
         options.alpha_init = options.alpha_init(:);
     elseif strcmpi(options.alpha_init, "auto")
-            % Calculate Smart Alpha
-            alpha_vec = zeros(n, 1);
-            for i = 1:n
-                if x0(i) ~= 0
-                    alpha_vec(i) = max(abs(x0(i)), options.StepTolerance(i));
+        % Calculate Smart Alpha
+        alpha_vec = zeros(n, 1);
+        % for i = 1:n
+        %     if x0(i) ~= 0
+        %         alpha_vec(i) = max(abs(x0(i)), options.StepTolerance(i));
+        %     else
+        %         alpha_vec(i) = 1;
+        %     end
+        % end
+
+        % Extract nonzero elements to compute the initial-point scale ratio.
+        abs_x0 = abs(x0);
+        nonzero_abs_x0 = abs_x0(abs_x0 > 0);
+        if isempty(nonzero_abs_x0)
+            x0_scale_ratio = 1;
+        else
+            x0_scale_ratio = max(nonzero_abs_x0) / min(nonzero_abs_x0);
+        end
+
+        for i = 1:n
+            abs_x0_i = abs_x0(i);
+            % We are handling initialization, where x0 is explicitly provided by the user.
+            % Using abs_x0_i == 0 cleanly distinguishes an exact origin input from an intentionally
+            % tiny but nonzero initial value.
+            if abs_x0_i == 0
+                alpha_vec(i) = 1;
+            elseif abs_x0_i <= 1
+                % For small-scale variables, preserve the original scale with the StepTolerance 
+                % as the lower bound to prevent excessively small step sizes that may cause 
+                % premature termination.
+                alpha_vec(i) = max(abs_x0_i, options.StepTolerance(i));
+            else
+                % x0_scale_ratio is used as a coarse detector of coordinate scale heterogeneity.
+                %
+                % (x0_scale_ratio <= 100): relatively homogeneous scales.
+                % This regime is common in benchmark sets such as S2MPJ
+                % (https://github.com/GrattonToint/S2MPJ), where x0 may be a distant but
+                % uniformly scaled anchor (e.g., [1e5, 1e5, ..., 1e5]). In this case, using the
+                % full local scale (abs_x0_i) keeps long-range progress efficient.
+                %
+                % (x0_scale_ratio > 100): highly heterogeneous scales.
+                % This regime is common in benchmark sets such as MatCUTEst
+                % (https://github.com/matcutest), where variables may differ by several orders of
+                % magnitude (e.g., [0.02, 4000, 250]). Using abs_x0_i directly can cause
+                % overshooting and excessive shrink updates.
+                %
+                % The logarithmic mapping reduces overly large initial steps while preserving
+                % monotonic scaling. The "1 +" intercept guarantees C^0 continuity at the
+                % micro-macro boundary (|x_i| = 1). We use log10 (not ln) because it provides 
+                % stronger damping at large magnitudes, and base 10 matches physical orders of 
+                % magnitude.
+                if x0_scale_ratio <= 100
+                    alpha_vec(i) = abs_x0_i;
                 else
-                    alpha_vec(i) = 1;
+                    alpha_vec(i) = 1 + log10(abs_x0_i);
                 end
             end
-            options.alpha_init = alpha_vec;
+        end
+        options.alpha_init=alpha_vec;
     else
         error('BDS:set_options:InvalidAlphaInit', ...
             'options.alpha_init must be a positive scalar, a vector of length options.num_blocks, or "auto".');
@@ -278,8 +327,8 @@ end
 % determined solely by user input.
 % We define a list of fields that have been handled manually above.
 manual_fields = {'MaxFunctionEvaluations', 'Algorithm', 'direction_set', 'num_blocks', ...
-                 'StepTolerance', 'batch_size', 'replacement_delay', 'block_visiting_pattern', ...
-                 'alpha_init', 'is_noisy', 'expand', 'shrink', 'grouped_direction_indices'};
+                'StepTolerance', 'batch_size', 'replacement_delay', 'block_visiting_pattern', ...
+                'alpha_init', 'is_noisy', 'expand', 'shrink', 'grouped_direction_indices'};
 
 % For the remaining fields, set default values using get_default_constant if they are missing.
 % We iterate through field_list to maintain the order defined in bds.m.
